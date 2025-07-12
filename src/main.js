@@ -18,6 +18,7 @@ let currentTicketId = 1234;
 let currentPattern = null;
 let resultIndex = 0;
 
+// Weighted pattern picker
 function pickWeightedPattern() {
   const totalWeight = patterns.reduce((sum, p) => sum + p.weight, 0);
   const rand = Math.random() * totalWeight;
@@ -29,6 +30,7 @@ function pickWeightedPattern() {
   return patterns[0].pattern;
 }
 
+// Generate single ticket object
 function generateTicket() {
   if (!currentPattern || resultIndex >= currentPattern.length) {
     currentPattern = pickWeightedPattern();
@@ -38,8 +40,8 @@ function generateTicket() {
   const result = currentPattern[resultIndex];
   const ticket = {
     ticketId: currentTicketId,
-    result,
-    time: new Date().toISOString(),
+    result: result,
+    createdAt: new Date().toISOString(),
   };
 
   currentTicketId++;
@@ -62,17 +64,20 @@ export default async ({ res, log }) => {
       process.env.APPWRITE_DATABASE_ID,
       process.env.APPWRITE_COLLECTION_ID,
       "unique()",
-      ticket
+      {
+        ticketId: ticket.ticketId,
+        result: ticket.result,
+        createdAt: ticket.createdAt,
+      }
     );
 
-    log("Ticket Saved: " + JSON.stringify(saved));
+    log("✅ Ticket saved: " + JSON.stringify(saved));
     return res.json({
       success: true,
-      ticket,
       saved,
     });
   } catch (err) {
-    log("Error: " + err.message);
+    log("❌ Error: " + err.message);
     return res.json({ success: false, error: err.message });
   }
 };
