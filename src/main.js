@@ -57,12 +57,31 @@ export default async ({ res, log }) => {
 
   const databases = new Databases(client);
 
-  try {
-    const ticket = generateTicket();
+  const DB_ID = process.env.APPWRITE_DATABASE_ID;
+  const COLLECTION_ID = process.env.APPWRITE_COLLECTION_ID;
 
+  try {
+    // Get all tickets sorted by createdAt DESC (newest first)
+    const allDocs = await databases.listDocuments(DB_ID, COLLECTION_ID, [
+      Query.orderDesc("createdAt"),
+      Query.limit(100), // Safety limit
+    ]);
+
+    // If there are 50+ docs, delete the extras beyond 49
+    if (allDocs.total > 49) {
+      const docsToDelete = allDocs.documents.slice(49); // keep 0-48 (first 49)
+      for (const doc of docsToDelete) {
+        await databases.deleteDocument(DB_ID, COLLECTION_ID, doc.$id);
+        log(`🗑️ Deleted ticket #${doc.ticketId}`);
+      }
+    }
+
+    // Generate new ticket
+    const ticket = generateTicket();
+    // Save new ticket
     const saved = await databases.createDocument(
-      process.env.APPWRITE_DATABASE_ID,
-      process.env.APPWRITE_COLLECTION_ID,
+      DB_ID,
+      COLLECTION_ID,
       "unique()",
       {
         ticketId: ticket.ticketId,
