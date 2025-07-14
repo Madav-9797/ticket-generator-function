@@ -91,10 +91,6 @@ export default async ({ res, log }) => {
     );
 
     log("✅ Ticket saved: " + JSON.stringify(saved));
-    return res.json({
-      success: true,
-      saved,
-    });
   } catch (err) {
     log("❌ Error: " + err.message);
     return res.json({ success: false, error: err.message });
