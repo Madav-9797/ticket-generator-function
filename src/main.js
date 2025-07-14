@@ -1,5 +1,6 @@
-import { Client, Databases } from "node-appwrite";
+import { Client, Databases, ID, Query } from "node-appwrite";
 
+// 🎲 Ticket patterns
 const patterns = [
   { pattern: ["Small", "Big", "Small", "Big"], weight: 5 },
   { pattern: ["Small", "Small", "Big", "Big"], weight: 4 },
@@ -14,9 +15,10 @@ const patterns = [
   { pattern: ["Big", "Big", "Small", "Big"], weight: 1 },
 ];
 
-let currentTicketId = 1234;
+// 🧠 Pattern logic
 let currentPattern = null;
 let resultIndex = 0;
+let currentTicketId = 1234;
 
 function pickWeightedPattern() {
   const totalWeight = patterns.reduce((sum, p) => sum + p.weight, 0);
@@ -37,17 +39,17 @@ function generateTicket() {
 
   const result = currentPattern[resultIndex];
   const ticket = {
-    ticketId: currentTicketId,
-    result: result,
+    ticketId: currentTicketId++,
+    result,
     createdAt: new Date().toISOString(),
   };
 
-  currentTicketId++;
   resultIndex++;
   return ticket;
 }
 
-export default async ({ res, log }) => {
+// 🧩 Main Function
+export default async ({ log, res }) => {
   const client = new Client()
     .setEndpoint(process.env.APPWRITE_ENDPOINT)
     .setProject(process.env.APPWRITE_PROJECT_ID)
@@ -55,72 +57,37 @@ export default async ({ res, log }) => {
 
   const databases = new Databases(client);
 
-  try {
-    const ticket = generateTicket();
+  const DB_ID = process.env.APPWRITE_DATABASE_ID;
+  const COLLECTION_ID = process.env.APPWRITE_COLLECTION_ID;
 
-    // 1. Save the new ticket
-    const saved = await databases.createDocument(
-      process.env.APPWRITE_DATABASE_ID,
-      process.env.APPWRITE_COLLECTION_ID,
-      "unique()",
-      {
-        ticketId: ticket.ticketId,
-        result: ticket.result,
-        createdAt: ticket.createdAt,
-      }
+  try {
+    // 🔁 Get existing tickets sorted by createdAt DESC
+    const existing = await databases.listDocuments(
+      DB_ID,
+      COLLECTION_ID,
+      [Query.orderDesc("createdAt")]
     );
 
-    log("✅ Ticket saved: " + JSON.stringify(saved));
-
-    // 2. Get all documents sorted by createdAt (oldest first)
-    let allDocs = [];
-    let page = 0;
-    let hasMore = true;
-
-    while (hasMore) {
-      const docs = await databases.listDocuments(
-        process.env.APPWRITE_DATABASE_ID,
-        process.env.APPWRITE_COLLECTION_ID,
-        [],
-        100,
-        page * 100,
-        undefined,
-        undefined,
-        ['createdAt']
-      );
-      allDocs = allDocs.concat(docs.documents);
-      hasMore = docs.documents.length === 100;
-      page++;
+    // 🗑️ If > 49, delete the oldest (last in list)
+    if (existing.total >= 50) {
+      const oldest = existing.documents[existing.documents.length - 1];
+      await databases.deleteDocument(DB_ID, COLLECTION_ID, oldest.$id);
+      log(`🗑️ Deleted oldest ticket ID: ${oldest.ticketId}`);
     }
 
-    // 3. Delete all except the latest 50
-    const totalToDelete = allDocs.length - 50;
-    log(`🧾 Total tickets: ${allDocs.length}`);
-    log(`🗑️ Deleting oldest ${totalToDelete} tickets`);
-      
-    if (totalToDelete > 0) {
-      const oldDocs = allDocs.slice(0, totalToDelete);
-      for (const doc of oldDocs) {
-        try {
-          await databases.deleteDocument(
-            process.env.APPWRITE_DATABASE_ID,
-            process.env.APPWRITE_COLLECTION_ID,
-            doc.$id
-          );
-          log(`✅ Deleted document ID: ${doc.$id}`);
-        } catch (err) {
-          log(`❌ Failed to delete document ID ${doc.$id}: ${err.message}`);
-        }
-      }
-    }
+    // 🎟️ Add new ticket
+    const ticket = generateTicket();
+    const saved = await databases.createDocument(
+      DB_ID,
+      COLLECTION_ID,
+      ID.unique(),
+      ticket
+    );
 
-    return res.json({
-      success: true,
-      created: saved,
-      totalDeleted: totalToDelete > 0 ? totalToDelete : 0,
-    });
+    log(`✅ New ticket saved: ${ticket.ticketId}`);
+    return res.json({ success: true, ticket, saved });
   } catch (err) {
-    log("❌ Error: " + err.message);
+    log(`❌ Error: ${err.message}`);
     return res.json({ success: false, error: err.message });
   }
 };
