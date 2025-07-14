@@ -49,7 +49,7 @@ function generateTicket() {
   return ticket;
 }
 
-export default async ({ res, log }) => {
+export default async ({ req, res, log }) => {
   const client = new Client()
     .setEndpoint(process.env.APPWRITE_ENDPOINT)
     .setProject(process.env.APPWRITE_PROJECT_ID)
