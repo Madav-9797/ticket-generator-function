@@ -18,7 +18,6 @@ let currentTicketId = 1234;
 let currentPattern = null;
 let resultIndex = 0;
 
-// Weighted pattern picker
 function pickWeightedPattern() {
   const totalWeight = patterns.reduce((sum, p) => sum + p.weight, 0);
   const rand = Math.random() * totalWeight;
@@ -30,7 +29,6 @@ function pickWeightedPattern() {
   return patterns[0].pattern;
 }
 
-// Generate single ticket object
 function generateTicket() {
   if (!currentPattern || resultIndex >= currentPattern.length) {
     currentPattern = pickWeightedPattern();
@@ -59,7 +57,7 @@ export default async ({ res, log }) => {
 
   try {
     const ticket = generateTicket();
-    
+
     // 1. Save the new ticket
     const saved = await databases.createDocument(
       process.env.APPWRITE_DATABASE_ID,
@@ -71,6 +69,8 @@ export default async ({ res, log }) => {
         createdAt: ticket.createdAt,
       }
     );
+
+    log("✅ Ticket saved: " + JSON.stringify(saved));
 
     // 2. Get all documents sorted by createdAt (oldest first)
     let allDocs = [];
@@ -105,12 +105,12 @@ export default async ({ res, log }) => {
         );
       }
       log(`🧹 Deleted ${totalToDelete} old tickets`);
-    }    
+    }
 
-    log("✅ Ticket saved: " + JSON.stringify(saved));
     return res.json({
       success: true,
-      saved,
+      created: saved,
+      totalDeleted: totalToDelete > 0 ? totalToDelete : 0,
     });
   } catch (err) {
     log("❌ Error: " + err.message);
