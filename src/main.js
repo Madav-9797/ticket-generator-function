@@ -95,16 +95,23 @@ export default async ({ res, log }) => {
 
     // 3. Delete all except the latest 50
     const totalToDelete = allDocs.length - 50;
+    log(`🧾 Total tickets: ${allDocs.length}`);
+    log(`🗑️ Deleting oldest ${totalToDelete} tickets`);
+      
     if (totalToDelete > 0) {
       const oldDocs = allDocs.slice(0, totalToDelete);
       for (const doc of oldDocs) {
-        await databases.deleteDocument(
-          process.env.APPWRITE_DATABASE_ID,
-          process.env.APPWRITE_COLLECTION_ID,
-          doc.$id
-        );
+        try {
+          await databases.deleteDocument(
+            process.env.APPWRITE_DATABASE_ID,
+            process.env.APPWRITE_COLLECTION_ID,
+            doc.$id
+          );
+          log(`✅ Deleted document ID: ${doc.$id}`);
+        } catch (err) {
+          log(`❌ Failed to delete document ID ${doc.$id}: ${err.message}`);
+        }
       }
-      log(`🧹 Deleted ${totalToDelete} old tickets`);
     }
 
     return res.json({
