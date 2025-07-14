@@ -59,7 +59,8 @@ export default async ({ res, log }) => {
 
   try {
     const ticket = generateTicket();
-
+    
+    // 1. Save the new ticket
     const saved = await databases.createDocument(
       process.env.APPWRITE_DATABASE_ID,
       process.env.APPWRITE_COLLECTION_ID,
@@ -70,6 +71,41 @@ export default async ({ res, log }) => {
         createdAt: ticket.createdAt,
       }
     );
+
+    // 2. Get all documents sorted by createdAt (oldest first)
+    let allDocs = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const docs = await databases.listDocuments(
+        process.env.APPWRITE_DATABASE_ID,
+        process.env.APPWRITE_COLLECTION_ID,
+        [],
+        100,
+        page * 100,
+        undefined,
+        undefined,
+        ['createdAt']
+      );
+      allDocs = allDocs.concat(docs.documents);
+      hasMore = docs.documents.length === 100;
+      page++;
+    }
+
+    // 3. Delete all except the latest 50
+    const totalToDelete = allDocs.length - 50;
+    if (totalToDelete > 0) {
+      const oldDocs = allDocs.slice(0, totalToDelete);
+      for (const doc of oldDocs) {
+        await databases.deleteDocument(
+          process.env.APPWRITE_DATABASE_ID,
+          process.env.APPWRITE_COLLECTION_ID,
+          doc.$id
+        );
+      }
+      log(`🧹 Deleted ${totalToDelete} old tickets`);
+    }    
 
     log("✅ Ticket saved: " + JSON.stringify(saved));
     return res.json({
