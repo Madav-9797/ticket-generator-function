@@ -1,4 +1,4 @@
-import { Client, Databases, Query } from "node-appwrite";
+import { Client, Databases } from "node-appwrite";
 
 const patterns = [
   { pattern: ["Small", "Big", "Small", "Big"], weight: 5 },
@@ -49,7 +49,7 @@ function generateTicket() {
   return ticket;
 }
 
-export default async ({ req, res, log }) => {
+export default async ({ res, log }) => {
   const client = new Client()
     .setEndpoint(process.env.APPWRITE_ENDPOINT)
     .setProject(process.env.APPWRITE_PROJECT_ID)
@@ -57,31 +57,12 @@ export default async ({ req, res, log }) => {
 
   const databases = new Databases(client);
 
-  const DB_ID = process.env.APPWRITE_DATABASE_ID;
-  const COLLECTION_ID = process.env.APPWRITE_COLLECTION_ID;
-
   try {
-    // Get all tickets sorted by createdAt DESC (newest first)
-    const allDocs = await databases.listDocuments(DB_ID, COLLECTION_ID, [
-      Query.orderDesc("createdAt"),
-      Query.limit(100), // Safety limit
-    ]);
-
-    // If there are 50+ docs, delete the extras beyond 49
-    if (allDocs.total > 49) {
-      const docsToDelete = allDocs.documents.slice(49); // keep 0-48 (first 49)
-      for (const doc of docsToDelete) {
-        await databases.deleteDocument(DB_ID, COLLECTION_ID, doc.$id);
-        log(`🗑️ Deleted ticket #${doc.ticketId}`);
-      }
-    }
-
-    // Generate new ticket
     const ticket = generateTicket();
-    // Save new ticket
+
     const saved = await databases.createDocument(
-      DB_ID,
-      COLLECTION_ID,
+      process.env.APPWRITE_DATABASE_ID,
+      process.env.APPWRITE_COLLECTION_ID,
       "unique()",
       {
         ticketId: ticket.ticketId,
@@ -91,9 +72,12 @@ export default async ({ req, res, log }) => {
     );
 
     log("✅ Ticket saved: " + JSON.stringify(saved));
-    return res.empty();
+    return res.json({
+      success: true,
+      saved,
+    });
   } catch (err) {
     log("❌ Error: " + err.message);
-    return res.empty();
+    return res.json({ success: false, error: err.message });
   }
 };
