@@ -14,7 +14,6 @@ const patterns = [
   { pattern: ["Big", "Big", "Small", "Big"], weight: 1 },
 ];
 
-let currentTicketId = 1234;
 let currentPattern = null;
 let resultIndex = 0;
 
@@ -39,12 +38,11 @@ function generateTicket() {
 
   const result = currentPattern[resultIndex];
   const ticket = {
-    ticketId: currentTicketId,
+    ticketId: id,
     result: result,
     createdAt: new Date().toISOString(),
   };
 
-  currentTicketId++;
   resultIndex++;
   return ticket;
 }
@@ -61,9 +59,19 @@ export default async ({ res, log }) => {
   const COLLECTION_ID = process.env.APPWRITE_COLLECTION_ID;
 
   try {
-    // 1. Generate ticket
-    const ticket = generateTicket();
-    // 2. Save to database
+    // Step 1: Get latest ticketId
+    const latest = await databases.listDocuments(DB_ID, COLLECTION_ID, [
+      Query.orderDesc("ticketId"),
+      Query.limit(1),
+    ]);
+
+    let nextTicketId = 1234; // default if collection empty
+    if (latest.total > 0) {
+      nextTicketId = latest.documents[0].ticketId + 1;
+    }
+    // 2. Generate ticket
+    const ticket = generateTicket(nextTicketId);
+    // 3. Save to database
     const saved = await databases.createDocument(
       process.env.APPWRITE_DATABASE_ID,
       process.env.APPWRITE_COLLECTION_ID,
@@ -77,7 +85,7 @@ export default async ({ res, log }) => {
 
     log("✅ Ticket saved: " + JSON.stringify(saved));
 
-    // 3. Clean old tickets (keep only latest 50)
+    // 4. Clean old tickets (keep only latest 50)
     const docs = await databases.listDocuments(DB_ID, COLLECTION_ID, [
       Query.orderDesc("ticketId"),
       Query.limit(100),
