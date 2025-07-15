@@ -86,28 +86,28 @@ export default async ({ res, log }) => {
     log("✅ Ticket saved: " + JSON.stringify(saved));
 
     // 4. Clean old tickets (keep only latest 50)
-    // const docs = await databases.listDocuments(DB_ID, COLLECTION_ID, [
-    //   Query.orderDesc("ticketId"),
-    //   Query.limit(100),
-    // ]);
+    const docs = await databases.listDocuments(DB_ID, COLLECTION_ID, [
+      Query.orderDesc("ticketId"),
+      Query.limit(100),
+    ]);
 
-    // log(`📄 Total documents fetched: ${docs.total}`);
+    log(`📄 Total documents fetched: ${docs.total}`);
 
-    // if (docs.total > 50) {
-    //   const toDelete = docs.documents.slice(50); // Keep 0–49
+    if (docs.total > 50) {
+      const toDelete = docs.documents.slice(50); // Keep 0–49
 
-    //   for (const doc of toDelete) {
-    //     log(`🔍 Attempting to delete doc: ${doc.$id}`);
-    //     try {
-    //       await databases.deleteDocument(DB_ID, COLLECTION_ID, doc.$id);
-    //       log(`🗑️ Deleted old ticket: ${doc.$id}`);
-    //     } catch (delErr) {
-    //       log(`⚠️ Failed to delete ${doc.$id}: ${delErr.message}`);
-    //     }
-    //   }
-    // } else {
-    //   log(`ℹ️ Ticket count (${docs.total}) under limit. No deletion needed.`);
-    // }
+      for (const doc of toDelete) {
+        log(`🔍 Attempting to delete doc: ${doc.$id}`);
+        try {
+          await databases.deleteDocument(DB_ID, COLLECTION_ID, doc.$id);
+          log(`🗑️ Deleted old ticket: ${doc.$id}`);
+        } catch (delErr) {
+          log(`⚠️ Failed to delete ${doc.$id}: ${delErr.message}`);
+        }
+      }
+    } else {
+      log(`ℹ️ Ticket count (${docs.total}) under limit. No deletion needed.`);
+    }
 
     return res.empty();
   } catch (err) {
