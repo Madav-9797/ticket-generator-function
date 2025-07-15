@@ -78,18 +78,25 @@ export default async ({ res, log }) => {
     log("✅ Ticket saved: " + JSON.stringify(saved));
 
     // 3. Clean old tickets (keep only latest 50)
-    const allDocs = await databases.listDocuments(DB_ID, COLLECTION_ID, [
+    const docs = await databases.listDocuments(DB_ID, COLLECTION_ID, [
       Query.orderDesc("createdAt"),
-      Query.limit(100), // Just in case there are more
+      Query.limit(100),
     ]);
 
-    if (allDocs.total > 50) {
-      const docsToDelete = allDocs.documents.slice(50); // Keep 0–49
-      for (const doc of docsToDelete) {
-        await databases.deleteDocument(DB_ID, COLLECTION_ID, doc.$id);
-        log(`🗑️ Deleted ticket #${doc.ticketId}`);
+    if (docs.total > 50) {
+      const toDelete = docs.documents.slice(50); // Keep 0–49, delete the rest
+
+      for (const doc of toDelete) {
+        try {
+          await databases.deleteDocument(DB_ID, COLLECTION_ID, doc.$id);
+          log(`🗑️ Deleted old ticket: ${doc.$id}`);
+        } catch (delErr) {
+          log(`⚠️ Failed to delete ${doc.$id}: ${delErr.message}`);
+        }
       }
-    }    
+    } else {
+      log(`ℹ️ Ticket count (${docs.total}) under limit. No deletion needed.`);
+    }   
 
     return res.empty();
   } catch (err) {
