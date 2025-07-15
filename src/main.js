@@ -14,6 +14,7 @@ const patterns = [
   { pattern: ["Big", "Big", "Small", "Big"], weight: 1 },
 ];
 
+let currentTicketId = 1234;
 let currentPattern = null;
 let resultIndex = 0;
 
@@ -38,11 +39,12 @@ function generateTicket() {
 
   const result = currentPattern[resultIndex];
   const ticket = {
-    ticketId: id,
+    ticketId: currentTicketId,
     result: result,
     createdAt: new Date().toISOString(),
   };
 
+  currentTicketId++;
   resultIndex++;
   return ticket;
 }
@@ -59,39 +61,35 @@ export default async ({ res, log }) => {
   const COLLECTION_ID = process.env.APPWRITE_COLLECTION_ID;
 
   try {
-    // 🟢 1. Fetch latest ticket to get last used ticketId
-    const latestDoc = await databases.listDocuments(DB_ID, COLLECTION_ID, [
-      Query.orderDesc("ticketId"),
-      Query.limit(1),
-    ]);
-
-    let lastTicketId = 1233; // default if none exists
-    if (latestDoc.total > 0) {
-      lastTicketId = latestDoc.documents[0].ticketId;
-    }
-
-    const nextTicketId = lastTicketId + 1;
-
-    // 🟢 2. Generate and Save New Ticket
-    const ticket = generateTicket(nextTicketId);
-    const saved = await databases.createDocument(DB_ID, COLLECTION_ID, "unique()", {
-      ticketId: ticket.ticketId,
-      result: ticket.result,
-      createdAt: ticket.createdAt,
-    });
+    // 1. Generate ticket
+    const ticket = generateTicket();
+    // 2. Save to database
+    const saved = await databases.createDocument(
+      process.env.APPWRITE_DATABASE_ID,
+      process.env.APPWRITE_COLLECTION_ID,
+      "unique()",
+      {
+        ticketId: ticket.ticketId,
+        result: ticket.result,
+        createdAt: ticket.createdAt,
+      }
+    );
 
     log("✅ Ticket saved: " + JSON.stringify(saved));
 
-    // 🟢 3. Keep only latest 50 tickets
+    // 3. Clean old tickets (keep only latest 50)
     const docs = await databases.listDocuments(DB_ID, COLLECTION_ID, [
       Query.orderDesc("ticketId"),
       Query.limit(100),
     ]);
 
+    log(`📄 Total documents fetched: ${docs.total}`);
+
     if (docs.total > 50) {
-      const toDelete = docs.documents.slice(50); // Keep top 50
+      const toDelete = docs.documents.slice(50); // Keep 0–49
 
       for (const doc of toDelete) {
+        log(`🔍 Attempting to delete doc: ${doc.$id}`);
         try {
           await databases.deleteDocument(DB_ID, COLLECTION_ID, doc.$id);
           log(`🗑️ Deleted old ticket: ${doc.$id}`);
@@ -100,9 +98,8 @@ export default async ({ res, log }) => {
         }
       }
     } else {
-      log(`ℹ️ Total documents (${docs.total}) under limit. No deletion needed.`);
+      log(`ℹ️ Ticket count (${docs.total}) under limit. No deletion needed.`);
     }
-
 
     return res.empty();
   } catch (err) {
